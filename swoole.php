@@ -87,7 +87,7 @@ class Server
         // Content
         $content = $illuminate_response->getContent();
         if (false !== strpos($content, "x-type=download")) {
-            list(,, $content) = explode("&", $content);
+            list(, $content) = explode("&", $content);
             $response->header("Content-Type", "application/force-download");
             $response->header("Content-Disposition", "attachment;filename=" . basename($content));
             $response->sendfile($content);
