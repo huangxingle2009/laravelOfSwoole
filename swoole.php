@@ -20,7 +20,7 @@ class Server
             'max_request' => 4000,
             'dispatch_mode' => 1,
             'log_file' => __DIR__ . '/log',
-            'daemonize' => 1//异步 0：同步
+            'daemonize' => 0
         ]);
     }
 
@@ -48,7 +48,6 @@ class Server
     {
         $new_header = [];
         $uc_header = [];
-        //$_server consist of  $request->server + $request->header
         foreach ($request->header as $key => $value) {
             $new_header['http_' . $key] = $value;
             $uc_header[ucwords($key, '-')] = $value;
@@ -58,7 +57,6 @@ class Server
         $server = array_change_key_case($server, CASE_UPPER);
         $request->server = $server;
         $request->header = $uc_header;
-        
         // 转换为Swoole的请求对象
         $get = isset($request->get) ? $request->get : array();
         $post = isset($request->post) ? $request->post : array();
@@ -69,7 +67,7 @@ class Server
         $illuminate_request = IlluminateRequest::createFromBase(
             new SymfonyRequest($get, $post, array(), $cookie, $files, $server, $content)
         );
-        $_SERVER = array_merge($_SERVER, $request->server); 
+        $_SERVER = array_merge($_SERVER, $request->server);
         //把illuminate_request传入laravel_kernel后，取回illuminate_response
         $illuminate_response = $this->laravel_kernel->handle($illuminate_request);
 
@@ -88,11 +86,17 @@ class Server
         }
         // Content
         $content = $illuminate_response->getContent();
-        // Send content & Close
-        $response->end($content);
-
-        // 结束请求
-        $this->laravel_kernel->terminate($illuminate_request, $illuminate_response);
+        if (false !== strpos($content, "x-type=download")) {
+            list(,, $content) = explode("&", $content);
+            $response->header("Content-Type", "application/force-download");
+            $response->header("Content-Disposition", "attachment;filename=" . basename($content));
+            $response->sendfile($content);
+        }else {
+            // Send content & Close
+            $response->end($content);
+            // 结束请求
+            $this->laravel_kernel->terminate($illuminate_request, $illuminate_response);
+        }
     }
 }
 $http = new Server('127.0.0.1', 9050);
